@@ -1,5 +1,5 @@
-import mimetypes
 import json
+import mimetypes
 from pathlib import Path
 import urllib.parse
 from datetime import datetime
@@ -8,25 +8,27 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from jinja2 import Environment, FileSystemLoader
 
 BASE_DIR = Path(__file__).parent
+STATIC_DIR = Path(BASE_DIR) / "static"
 jinja = Environment(loader=FileSystemLoader("templates"))
 
 
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         route = urllib.parse.urlparse(self.path)
+        templates_path = "templates/"
         match route.path:
             case "/":
-                self.send_html("index.html")
+                self.send_html(f"{templates_path}index.html")
             case "/read":
                 self.render_template("read.jinja")
             case "/message":
-                self.send_html("message.html")
+                self.send_html(f"{templates_path}message.html")
             case _:
-                file = BASE_DIR.joinpath(route.path[1:])
+                file = search_file(STATIC_DIR, route.path[1:])
                 if file.exists():
                     self.send_static(file)
                 else:
-                    self.send_html("404.html", 404)
+                    self.send_html(f"{templates_path}error.html", 404)
 
     def do_POST(self):
         size = self.headers.get("Content-Length")
@@ -76,6 +78,16 @@ class MyHandler(BaseHTTPRequestHandler):
             template = jinja.get_template(filename)
             content = template.render(messages=data)
             self.wfile.write(content.encode())
+
+
+def search_file(path: Path, filename: str):
+    for element in path.iterdir():
+        if element.is_dir():
+            result = search_file(element, filename)
+            if result:
+                return result
+        elif element.name == filename:
+            return element
 
 
 def run(server_class=HTTPServer, handler_class=MyHandler):
